@@ -1,6 +1,6 @@
 import click
 from . import main as rst
-
+from boto3 import Session
 OU_SYMBOL = click.style('➜', fg='blue')
 ACCOUNT_SYMBOL = click.style('•', fg='green')
 
@@ -17,8 +17,10 @@ def print_org_structure(structure: rst.OrgStructure):
     show_children(structure.children)
 
 @click.command(short_help='Show the structure of the AWS Organization')
-def show_org_structure(org: rst.Organizations) -> None:
+def show_org_structure() -> None:
     """Show the structure of the AWS Organization."""
+    session = Session()
+    org = rst.Organizations(session.client('organizations'))
     root_id = org.get_root_id()
     structure = org.get_org_structure(root_id)
     print_org_structure(structure)
