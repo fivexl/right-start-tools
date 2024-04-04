@@ -4,6 +4,7 @@ import get_tags
 TAGS_TO_CREATE = {}  # <------ Copy output from get_tags.py here
 VPC_ID = ""  # <------ VPC ID
 REGION = "us-east-1"
+DRY_RUN = False  # Set this to False to apply tagging for subnets in the account
 
 
 def create_tag(subnet_id: str, tag_object: dict, ec2_client) -> None:  # noqa: ANN001
@@ -30,10 +31,17 @@ if __name__ == "__main__":
     if subnets is not None:
         for subnet in subnets:
             if subnet["SubnetId"] in TAGS_TO_CREATE:
-                create_tag(
-                    subnet["SubnetId"], TAGS_TO_CREATE[subnet["SubnetId"]], ec2_client
+                tags_to_create = TAGS_TO_CREATE[subnet["SubnetId"]]
+                tags_to_create["Name"] = (
+                    f"{tags_to_create['NamePrefix']}{tags_to_create['Type']}-{subnet['AvailabilityZone']}"
                 )
-                print(f"Tags created for {subnet['SubnetId']}.")
+                del tags_to_create['NamePrefix']
+                print(f"Tags to create: {tags_to_create}")
+                if not DRY_RUN:
+                    create_tag(
+                        subnet["SubnetId"], tags_to_create, ec2_client
+                    )
+                    print(f"Tags created for {subnet['SubnetId']}.")
             else:
                 print(f"Tags not found for {subnet['SubnetId']}.")
     else:

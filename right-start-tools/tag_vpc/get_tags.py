@@ -5,7 +5,7 @@ import create_tags
 
 VPC_ID = ""
 REGION = "us-east-1"
-VAR_NAME = ""  # Necessary to separate name from subnet type, e.g., "apps-db"
+VPC_NAME = "apps"  # Necessary to separate name from subnet type, e.g., "apps-db"
 VALID_SUBNET_TYPES = [
     "public",
     "private",
@@ -15,7 +15,7 @@ VALID_SUBNET_TYPES = [
     "intra",
     "outpost",
 ]  # subnet types from VPC module
-CREATE_TAGS = False  # Set this to True to apply tagging for subnets in the account
+CREATE_TAGS = True  # Set this to True to apply tagging for subnets in the account
 
 
 def get_subnets_by_vpc_id(vpc_id: str, ec2_client) -> list[dict] | None:  # noqa: ANN001
@@ -35,7 +35,7 @@ def get_subnet_type_suffix(
     # default name from module is : <name_that_user_gave_to_vpc>-<subnet_type>-<az_id>
     # So we want to get the second part of the name.
     name_parts = subnet_name.split("-")
-    if len(name_parts) >= 3 and name_parts[0] == VAR_NAME:  # noqa: PLR2004
+    if len(name_parts) >= 3 and name_parts[0] == VPC_NAME:  # noqa: PLR2004
         subnet_type = name_parts[1]
         if subnet_type in valid_subnet_types:
             return subnet_type
@@ -46,8 +46,8 @@ if __name__ == "__main__":
     if not VPC_ID:
         print("Please set VPC_ID variable.")
         exit(1)
-    if not VAR_NAME:
-        print("Please set VAR_NAME variable.")
+    if not VPC_NAME:
+        print("Please set VPC_NAME variable.")
         exit(1)
     if CREATE_TAGS:
         print("CREATE_TAGS is set to True. Tags will be created.")
@@ -63,6 +63,7 @@ if __name__ == "__main__":
             ][0]
             if subnet_type := get_subnet_type_suffix(subnet_name, VALID_SUBNET_TYPES):
                 tags = {
+                    "NamePrefix": f"{VPC_NAME}-",
                     "AvailabilityZoneId": subnet["AvailabilityZoneId"],
                     "Type": subnet_type,
                 }
@@ -72,9 +73,6 @@ if __name__ == "__main__":
                         f"Next tags were created for {subnet_name}:",
                         json.dumps(tags, indent=4),
                     )
-
-                tags["Name"] = subnet_name
-                # name is added only for the output because subnets created by terrafrom module have "Name" tag by default
                 all_tags[f"{subnet['SubnetId']}"] = tags
             else:
                 print(f"Invalid or unexpected name '{subnet_name}'.")
