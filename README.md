@@ -10,6 +10,6 @@ Commands:
                       and create them if needed.
   gen-tf-backend      Generate backend.tf file based on current AWS
                       environment.
-  process-vpcs        Process VPCs in all regions.
+  process-vpcs        Intended to be used in management account, requires Control Tower or AWSControlTowerExecution role. Will delete all default VPC and internet gateways in all accounts in all regions.
   show-org-structure  Show the structure of the AWS Organization
 ```
