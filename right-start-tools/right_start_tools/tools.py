@@ -3,7 +3,7 @@ from typing import Optional
 import click
 from . import main as rst
 from boto3.session import Session
-from right_start_tools import vpc, show, backend
+from right_start_tools import backend
 from .constants import ORG_ACCESS_ROLE_NAME, CT_EXECUTION_ROLE_NAME
 
 @dataclass
