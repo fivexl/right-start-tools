@@ -1,0 +1,5 @@
+{
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.defaultInterpreterPath": "${workspaceFolder}/right-start-tools/.venv/bin/python"
+}
