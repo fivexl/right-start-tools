@@ -40,3 +40,7 @@ Commands:
 ```
 
 If you need to create cross-account tags for VPCs, please refer to the README.md in the tag_vpc directory.
+
+# Weekly review link
+- [Review](https://github.com/fivexl/right-start-tools/compare/main@%7B7day%7D...main)
+- [Review branch-based review](https://github.com/fivexl/right-start-tools/compare/review...main)
