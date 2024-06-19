@@ -11,10 +11,12 @@ This repository contains a set of tools that can simplify the management of AWS 
 To use it, please follow the instructions below:
 
 Clone the repository locally.
-- Navigate to the required directory: cd right-start-tools
-- Install dependencies using Poetry: `poetry install`
-- Log in to AWS: `aws-vault exec <profile>` / `aws configure`
-- Run the tool you need: `rst <command>`
+1. Move to the root directory of the repo
+2. `unset AWS_VAULT`
+3. `aws-vault exec <profile>`
+4. `cd right-start-tools/`       
+5. `poetry install`
+6. use any command from the list below
 
 
 ```
