@@ -53,7 +53,16 @@ def create_roles(dry_run: bool) -> None:
 
     for account in accounts:
         status = t.check_roles(account)
-        if role_to_create := status.role_to_create():
+        try:
+            role_to_create = status.role_to_create()
+        except ValueError:
+            click.echo(
+                f"Unable to assume roles for account {account}. "
+                "Either roles are missing, there is an issue with the access, "
+                "or the account is suspended."
+            )
+            continue
+        if role_to_create:
             if not dry_run:
                 click.echo(f"Creating role '{role_to_create}' in account {account}.")
                 t.create_admin_role_in_account(
@@ -61,6 +70,8 @@ def create_roles(dry_run: bool) -> None:
                 )
             else:
                 click.echo(f"Role '{role_to_create}' is missing in account {account}.")
+        else:
+            click.echo(f"Roles are already created in account {account}.")
     if not dry_run:
         click.echo("All set!")
 
