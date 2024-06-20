@@ -83,7 +83,7 @@ class Tools:
                 iam.create_admin_role(master_account_id, create_role_name)
                 click.echo("Done!")
             else:
-                click.echo("You are a coward!")
+                click.echo("Role not created.")
 
         except self.sts.client.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "AccessDenied":
@@ -120,71 +120,6 @@ class Tools:
                     raise e
 
                 role_name, create_role_name = create_role_name, role_name
-                self.try_to_assume_and_ask_to_create_role(
-                    account, role_name, master_account_id
-                )
-
-    def try_to_assume_and_ask_to_create_role_v2(
-        self,
-        account: rst.Account,
-        role_name: str,
-        master_account_id: str,
-        move_to_root: bool = False,
-    ):
-        if role_name == ORG_ACCESS_ROLE_NAME:
-            name_of_role_to_create = CT_EXECUTION_ROLE_NAME
-        elif role_name == CT_EXECUTION_ROLE_NAME:
-            name_of_role_to_create = ORG_ACCESS_ROLE_NAME
-        else:
-            raise ValueError(f"Unknown role name: {role_name}")
-
-        try:
-            credentials = self.sts.assume_role_and_get_credentials(
-                account.id, role_name
-            )
-            iam = rst.IAM.from_credentials(credentials)
-
-            if iam.is_role_exists(name_of_role_to_create):
-                click.echo(
-                    f"Role `{name_of_role_to_create}` already exists in account '{account.id}'."
-                )
-                return
-
-            if click.confirm(
-                f"Create role `{name_of_role_to_create}` in account {account.id}?"
-            ):
-                iam.create_admin_role(master_account_id, name_of_role_to_create)
-                click.echo("Done!")
-            else:
-                click.echo("You are a coward!")
-
-        except self.sts.client.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "AccessDenied":
-                click.echo(
-                    f"Failed to assume role `{role_name}` in account '{account.id}': Access Denied"
-                )
-
-                error_message = e.response["Error"]["Message"]
-                if "with an explicit deny in a service control policy" in error_message:
-
-                    click.echo(
-                        f"Account '{account.id}' has an SCP that denies access to the role `{role_name}`."
-                    )
-                    if click.confirm(
-                        f"Move account '{account.id}' to the root and try again?"
-                    ):
-
-                        def action(account):
-                            return self.try_to_assume_and_ask_to_create_role(
-                                account, role_name, master_account_id
-                            )
-
-                        self.org.execute_on_account_in_org_root(account, action)
-
-                else:
-                    raise e
-
-                role_name, name_of_role_to_create = name_of_role_to_create, role_name
                 self.try_to_assume_and_ask_to_create_role(
                     account, role_name, master_account_id
                 )
