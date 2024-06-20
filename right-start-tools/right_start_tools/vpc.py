@@ -98,7 +98,7 @@ def process_vpcs(dry_run: bool):
                         if not dry_run:
                             vpc.delete()
                         else:
-                            print(
+                            click.echo(
                                 f"Would delete default VPC {vpc.id} in region {region}"
                             )
         except Exception as e:
