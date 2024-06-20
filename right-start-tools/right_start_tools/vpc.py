@@ -43,12 +43,23 @@ def process_vpcs(dry_run: bool):
     root_id = t.org.get_root_id()
     structure = t.org.get_org_structure(root_id)
     accounts = structure.all_accounts()
+    click.echo("Dry run" if dry_run else "Processing VPCs...")
     for account in accounts:
         try:
-            print(f"Processing account {account}...")
-            credentials = t.sts.assume_role_and_get_credentials(
-                account.id, CT_EXECUTION_ROLE_NAME
-            )
+            click.echo(f"Processing account {account}...")
+            try:
+                credentials = t.sts.assume_role_and_get_credentials(
+                    account.id, CT_EXECUTION_ROLE_NAME
+                )
+
+            except Exception as e:
+                click.echo(
+                    f"Unable to assume roles for account {account}. "
+                    "Either roles are missing, there is an issue with the access, "
+                    "or the account is suspended."
+                    f"error: {e}"
+                )
+
             acc_session = Session(
                 aws_access_key_id=credentials["aws_access_key_id"],
                 aws_secret_access_key=credentials["aws_secret_access_key"],
@@ -57,7 +68,6 @@ def process_vpcs(dry_run: bool):
 
             ec2 = EC2(acc_session.client("ec2"))
             regions = ec2.get_all_regions_names()
-            click.echo("Dry run" if dry_run else "Processing VPCs...")
 
             for region in regions:
                 ec2_resource = acc_session.resource("ec2", region_name=region)
@@ -72,7 +82,7 @@ def process_vpcs(dry_run: bool):
                             if not dry_run:
                                 subnet.delete()
                             else:
-                                print(
+                                click.echo(
                                     f"Would delete subnet {subnet.id} in region {region}"
                                 )
                         # Detach and delete all internet gateways
@@ -81,7 +91,7 @@ def process_vpcs(dry_run: bool):
                                 vpc.detach_internet_gateway(InternetGatewayId=igw.id)
                                 igw.delete()
                             else:
-                                print(
+                                click.echo(
                                     f"Would detach and delete internet gateway {igw.id} in region {region}"
                                 )
                         # Delete the default VPC
