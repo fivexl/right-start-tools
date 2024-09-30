@@ -19,6 +19,9 @@ Clone the repository locally.
 6. use any command from the list below
 
 
+If the commands below aren't working for you, please try running them with Poetry by using:
+`poetry run rst <command>`
+
 ```
 Information Commands:
 - rst check-baseline
