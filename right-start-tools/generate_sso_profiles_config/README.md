@@ -1,3 +1,5 @@
+It’s a simple Python script with no dependencies other than `boto3`. This script allows you to list your AWS Organization accounts and automatically generate AWS SSO `[profile ...]` blocks that can be appended to your `~/.aws/config`. You can customize things like SSO start URL, AWS region, and permission sets directly in the script’s configuration section.
+
 # How to generate profiles for AWS SSO config
 1. Install boto3
 2. Get into the management account with access to the AWS Organizations service. Using aws-vault.
