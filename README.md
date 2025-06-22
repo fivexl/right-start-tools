@@ -41,7 +41,7 @@ Commands:
     Note! This process will go through all accounts and regions and delete default VPCs and IGWs. This process may take a while (~3-4 minutes per account).
 
 > This one requires you to be in the management account with permissions to STS & Organizations.
-- rst gen-tf-backend --region ca-central-1
+- rst gen-tf-backend --region <region>
     Generate backend.tf file based on the current AWS environment.
 
 ```
