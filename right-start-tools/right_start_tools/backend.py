@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # gen_tf_backend.py
 #
-# Generate *one* .tf file containing S3-backend configs
-# for every ACTIVE AWS account in the Organization.
+# Generate ONE .tf file containing backend configs for every ACTIVE
+# AWS account in the Organization, grouped alphabetically by account-name prefix.
+#
+# Requires: boto3, click (8.x), mypy-boto3-sts, mypy-boto3-organizations
 
 from __future__ import annotations
 
@@ -16,6 +18,9 @@ from mypy_boto3_organizations import OrganizationsClient
 from mypy_boto3_sts import STSClient
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────────────────────
 def get_management_account_id(sts: STSClient) -> str:
     """Return the AWS account ID of the caller (should be the management account)."""
     return sts.get_caller_identity()["Account"]
@@ -39,6 +44,14 @@ def list_active_accounts(org: OrganizationsClient) -> List[Tuple[str, str]]:
 def sha1(text: str) -> str:
     """Stable 40-char SHA-1 hex digest used to suffix bucket / table names."""
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def name_prefix(name: str) -> str:
+    """
+    Prefix used for sorting: substring before the first '-' (case-insensitive).
+    If no '-', the whole name is treated as the prefix.
+    """
+    return name.split("-", 1)[0].lower()
 
 
 def render_backend_block(region: str, env_hash: str, acct_id: str, acct_name: str) -> str:
@@ -86,11 +99,14 @@ def gen_tf_backend(region: str | None, output_file: pathlib.Path) -> None:  # no
     """
     Enumerate every ACTIVE account in the AWS Organization and write **all**
     backend blocks—annotated with account *name* and *ID*—into a single file.
+    Accounts are sorted alphabetically by the prefix of the account name
+    (text before the first '-').
     """
     session = boto3.Session()
     sts_client: STSClient = session.client("sts")
     org_client: OrganizationsClient = session.client("organizations")
 
+    # Ask for region if not provided
     if region is None:
         region = click.prompt(
             "AWS region for the backends",
@@ -101,8 +117,11 @@ def gen_tf_backend(region: str | None, output_file: pathlib.Path) -> None:  # no
     mgmt_id = get_management_account_id(sts_client)
     click.echo(f"Management account: {mgmt_id}")
 
-    accounts = list_active_accounts(org_client)
-    click.echo(f"Discovered {len(accounts)} ACTIVE accounts.")
+    raw_accounts = list_active_accounts(org_client)
+    click.echo(f"Discovered {len(raw_accounts)} ACTIVE accounts.")
+
+    # Sort by account-name prefix (before first '-')
+    accounts = sorted(raw_accounts, key=lambda x: name_prefix(x[1]))
 
     blocks: List[str] = []
     for acct_id, acct_name in accounts:
