@@ -27,9 +27,6 @@ Information Commands:
 - rst check-baseline
       Check if the RightStart account baseline is deployed to all accounts.
 
-- rst gen-tf-backend
-    Generate backend.tf file based on the current AWS environment.
-
 - rst show-org-structure
     Show the tree structure of the AWS Organization
 ```
@@ -42,6 +39,11 @@ Commands:
 - rst process-vpcs
     Intended to be used in the management account, requires Control Tower or AWSControlTowerExecution role. Will delete all default VPCs and internet gateways in all accounts in all regions.
     Note! This process will go through all accounts and regions and delete default VPCs and IGWs. This process may take a while (~3-4 minutes per account).
+
+> This one requires you to be in the management account with permissions to STS & Organizations.
+- rst gen-tf-backend --region ca-central-1
+    Generate backend.tf file based on the current AWS environment.
+
 ```
 
 If you need to create cross-account tags for VPCs, please refer to the README.md in the tag_vpc directory.
