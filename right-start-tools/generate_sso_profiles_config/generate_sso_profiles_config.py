@@ -11,7 +11,7 @@ def main():
     region = "us-east-1"
     prefix = ""
     postfix = ""
-    permission_set_names = ["AdministratorAccess"]
+    permission_set_names = ["AdministratorAccessToFullOrg"]
     # Add more if needed, if > 1, permission set name will be appended to profile name as a postfix
     # -------------------------------------------------------------------------------------
 
@@ -64,7 +64,7 @@ def main():
         print(line)
 
     # Also write them to a file named "config" (no extension)
-    with open("config", "w") as f:
+    with open("sso_profiles_config.md", "w") as f:
         for line in output_lines:
             f.write(line + "\n")
 
