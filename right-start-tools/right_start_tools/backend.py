@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import pathlib
-from typing import List
+from typing import List, Tuple
 
 import boto3
 import click
@@ -17,31 +17,36 @@ from mypy_boto3_sts import STSClient
 
 
 def get_management_account_id(sts: STSClient) -> str:
-    """Return the AWS account ID for the caller (should be the management account)."""
+    """Return the AWS account ID of the caller (should be the management account)."""
     return sts.get_caller_identity()["Account"]
 
 
-def list_active_account_ids(org: OrganizationsClient) -> List[str]:
-    """Return all ACTIVE account IDs in the org."""
-    account_ids: List[str] = []
-    for page in org.get_paginator("list_accounts").paginate():
+def list_active_accounts(org: OrganizationsClient) -> List[Tuple[str, str]]:
+    """
+    Return (account_id, account_name) for every ACTIVE account in the org.
+    """
+    accounts: List[Tuple[str, str]] = []
+    paginator = org.get_paginator("list_accounts")
+
+    for page in paginator.paginate():
         for acct in page["Accounts"]:
             if acct["Status"] == "ACTIVE":
-                account_ids.append(acct["Id"])
-    return account_ids
+                accounts.append((acct["Id"], acct["Name"]))
+
+    return accounts
 
 
 def sha1(text: str) -> str:
-    """SHA-1 hash as 40-char hex string (stable bucket suffix)."""
+    """Stable 40-char SHA-1 hex digest used to suffix bucket / table names."""
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
 
-def render_backend_block(region: str, env_hash: str, acct_id: str) -> str:
-    """Return one backend block, prefixed with a helpful comment."""
+def render_backend_block(region: str, env_hash: str, acct_id: str, acct_name: str) -> str:
+    """Return a backend block preceded by an informative comment."""
     return f"""\
-# ---------------------------------------------------------------------------
-# Account: {acct_id}
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Account: {acct_name} ({acct_id})
+# ─────────────────────────────────────────────────────────────────────────────
 terraform {{
   backend "s3" {{
     bucket         = "terraform-state-{env_hash}"
@@ -55,21 +60,19 @@ terraform {{
 """
 
 
-def write_single_tf_file(output_path: pathlib.Path, blocks: List[str]) -> None:
-    """Concatenate all backend blocks into one .tf file."""
-    output_path.write_text("".join(blocks), encoding="utf-8")
+def write_tf_file(path: pathlib.Path, blocks: List[str]) -> None:
+    """Write all backend blocks into a single .tf file."""
+    path.write_text("".join(blocks), encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------#
+# ──────────────────────────────────────────────────────────────────────────────
 # CLI
-# ---------------------------------------------------------------------------#
-
-
+# ──────────────────────────────────────────────────────────────────────────────
 @click.command(short_help="Generate one .tf file with backends for all org accounts.")
 @click.option(
     "--region",
     "-r",
-    help="AWS region where the state buckets live (will prompt if omitted).",
+    help="AWS region where the state buckets live (prompted if omitted).",
 )
 @click.option(
     "--output-file",
@@ -77,36 +80,37 @@ def write_single_tf_file(output_path: pathlib.Path, blocks: List[str]) -> None:
     type=click.Path(dir_okay=False, writable=True, path_type=pathlib.Path),
     default="backend_all_accounts.tf",
     show_default=True,
-    help="Filename to write all backend blocks into.",
+    help="Filename to write the combined backend blocks into.",
 )
 def gen_tf_backend(region: str | None, output_file: pathlib.Path) -> None:  # noqa: N802
     """
     Enumerate every ACTIVE account in the AWS Organization and write **all**
-    S3-backend blocks into a single Terraform file.
+    backend blocks—annotated with account *name* and *ID*—into a single file.
     """
-    sess = boto3.Session()
-    sts_client: STSClient = sess.client("sts")
-    org_client: OrganizationsClient = sess.client("organizations")
+    session = boto3.Session()
+    sts_client: STSClient = session.client("sts")
+    org_client: OrganizationsClient = session.client("organizations")
 
-    if not region:
-        default_region = sess.region_name or "us-east-1"
+    if region is None:
         region = click.prompt(
-            "Enter AWS region for the backends", default=default_region, type=str
+            "AWS region for the backends",
+            default=session.region_name or "us-east-1",
+            type=str,
         )
 
     mgmt_id = get_management_account_id(sts_client)
-    click.echo(f"Managing account: {mgmt_id}")
+    click.echo(f"Management account: {mgmt_id}")
 
-    acct_ids = list_active_account_ids(org_client)
-    click.echo(f"Found {len(acct_ids)} ACTIVE accounts…")
+    accounts = list_active_accounts(org_client)
+    click.echo(f"Discovered {len(accounts)} ACTIVE accounts.")
 
-    backend_blocks: List[str] = []
-    for acct_id in acct_ids:
+    blocks: List[str] = []
+    for acct_id, acct_name in accounts:
         env_hash = sha1(f"{acct_id}-{region}")
-        backend_blocks.append(render_backend_block(region, env_hash, acct_id))
+        blocks.append(render_backend_block(region, env_hash, acct_id, acct_name))
 
-    write_single_tf_file(output_file, backend_blocks)
-    click.echo(f"✔ All backend blocks written to {output_file}")
+    write_tf_file(output_file, blocks)
+    click.echo(f"✔ Backend snippets written to {output_file}")
 
 
 if __name__ == "__main__":
