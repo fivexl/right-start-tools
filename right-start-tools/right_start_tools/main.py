@@ -19,7 +19,7 @@ class Parent:
         return Parent(d["Id"], d["Type"])  # type: ignore
 
 
-@dataclass
+@dataclass(frozen=True)
 class Account:
     id: str
     arn: str
