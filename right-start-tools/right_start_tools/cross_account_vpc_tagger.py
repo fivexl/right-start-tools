@@ -279,6 +279,111 @@ def get_vpc_id_by_name(session: boto3.Session, vpc_name: str, region: str) -> st
     return response["Vpcs"][0]["VpcId"]
 
 
+def get_vpc_tags_by_id(vpc_id: str, ec2_client) -> Dict[str, str]:
+    """
+    Get all tags for a given VPC ID.
+    
+    Args:
+        vpc_id: The VPC ID to get tags for
+        ec2_client: The boto3 EC2 client
+        
+    Returns:
+        Dictionary of VPC tags
+    """
+    try:
+        response = ec2_client.describe_vpcs(VpcIds=[vpc_id])
+        vpc = response["Vpcs"][0]
+        tags = {}
+        for tag in vpc.get("Tags", []):
+            tags[tag["Key"]] = tag["Value"]
+        return tags
+    except (ClientError, BotoCoreError) as e:
+        print(f"Error getting tags for VPC {vpc_id}: {e}")
+        return {}
+
+
+def apply_tags_to_vpc(vpc_id: str, tags: Dict[str, str], ec2_client, dry_run: bool = True) -> bool:
+    """
+    Apply tags to a specific VPC.
+    
+    Args:
+        vpc_id: The VPC ID to tag
+        tags: Dictionary of tags to apply
+        ec2_client: The boto3 EC2 client
+        dry_run: If True, only print what would be done
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Convert tags dict to AWS tags format
+        aws_tags = [
+            {"Key": str(key), "Value": str(value)} 
+            for key, value in tags.items()
+        ]
+        
+        if dry_run:
+            print(f"DRY RUN - Would apply tags to VPC {vpc_id}: {tags}")
+            return True
+        else:
+            ec2_client.create_tags(
+                Resources=[vpc_id],
+                Tags=aws_tags
+            )
+            print(f"Successfully applied tags to VPC {vpc_id}: {tags}")
+            return True
+    except (ClientError, BotoCoreError) as e:
+        print(f"Error applying tags to VPC {vpc_id}: {e}")
+        return False
+
+
+def copy_vpc_name_tag_cross_account(
+    networking_account_id: str,
+    workloads_account_id: str,
+    vpc_id: str,
+    region: str = "us-east-1",
+    role_name: str = "AWSControlTowerExecution",
+    dry_run: bool = True
+) -> bool:
+    """
+    Copy VPC Name tag from networking account to workloads account.
+    
+    Args:
+        networking_account_id: AWS account ID of the networking account
+        workloads_account_id: AWS account ID of the workloads account
+        vpc_id: The VPC ID (should exist in both accounts if using RAM sharing)
+        region: AWS region (default: us-east-1)
+        role_name: IAM role name to assume (default: AWSControlTowerExecution)
+        dry_run: If True, only print what would be done (default: True)
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Get VPC tags from networking account
+        networking_session = assume_role(networking_account_id, role_name)
+        networking_ec2_client = networking_session.client("ec2", region_name=region)
+        vpc_tags = get_vpc_tags_by_id(vpc_id, networking_ec2_client)
+        
+        if not vpc_tags or "Name" not in vpc_tags:
+            print(f"No Name tag found for VPC {vpc_id} in networking account {networking_account_id}")
+            return False
+        
+        # Only copy the Name tag
+        name_tag = {"Name": vpc_tags["Name"]}
+        print(f"Found VPC Name tag: {name_tag}")
+        
+        # Apply VPC Name tag to workloads account
+        workloads_session = assume_role(workloads_account_id, role_name)
+        workloads_ec2_client = workloads_session.client("ec2", region_name=region)
+        
+        return apply_tags_to_vpc(vpc_id, name_tag, workloads_ec2_client, dry_run)
+        
+    except (ClientError, BotoCoreError) as e:
+        print(f"Error copying VPC Name tag: {e}")
+        return False
+
+
 def copy_vpc_subnet_tags_cross_account(
     networking_account_id: str,
     workloads_account_id: str,
@@ -288,12 +393,11 @@ def copy_vpc_subnet_tags_cross_account(
     dry_run: bool = True
 ) -> Dict[str, bool]:
     """
-    Main function to copy VPC subnet tags from networking account to workloads account.
+    Main function to copy VPC and subnet tags from networking account to workloads account.
     
     Args:
         networking_account_id: AWS account ID where the VPC tags are defined
         workloads_account_id: AWS account ID where tags should be applied
-        vpc_id: The VPC ID (should exist in both accounts if using RAM sharing)
         vpc_name: The VPC name used for tag generation
         region: AWS region (default: us-east-1)
         role_name: IAM role name to assume in both accounts (default: AWSControlTowerExecution)
@@ -305,7 +409,7 @@ def copy_vpc_subnet_tags_cross_account(
     Raises:
         ClientError: If role assumption or AWS API calls fail
     """
-    print(f"Starting cross-account VPC subnet tag copy...")
+    print(f"Starting cross-account VPC and subnet tag copy...")
     print(f"Networking Account: {networking_account_id}")
     print(f"Workloads Account: {workloads_account_id}")
     print(f"VPC Name: {vpc_name}")
@@ -316,8 +420,25 @@ def copy_vpc_subnet_tags_cross_account(
     session = assume_role(networking_account_id, role_name)
     vpc_id = get_vpc_id_by_name(session, vpc_name, region)
     
-    # Step 1: Extract tags from networking account
-    print("Step 1: Extracting subnet tags from networking account...")
+    # Step 1: Copy VPC Name tag
+    print("Step 1: Copying VPC Name tag from networking account to workloads account...")
+    vpc_success = copy_vpc_name_tag_cross_account(
+        networking_account_id=networking_account_id,
+        workloads_account_id=workloads_account_id,
+        vpc_id=vpc_id,
+        region=region,
+        role_name=role_name,
+        dry_run=dry_run
+    )
+    
+    if vpc_success:
+        print("VPC Name tag copied successfully")
+    else:
+        print("Failed to copy VPC Name tag")
+    print("-" * 50)
+    
+    # Step 2: Extract subnet tags from networking account
+    print("Step 2: Extracting subnet tags from networking account...")
     subnet_tags = extract_subnet_tags_from_networking_account(
         networking_account_id=networking_account_id,
         vpc_id=vpc_id,
@@ -333,8 +454,8 @@ def copy_vpc_subnet_tags_cross_account(
     print(f"Found tags for {len(subnet_tags)} subnets")
     print("-" * 50)
     
-    # Step 2: Apply tags to workloads account
-    print("Step 2: Applying subnet tags to workloads account...")
+    # Step 3: Apply subnet tags to workloads account
+    print("Step 3: Applying subnet tags to workloads account...")
     results = apply_subnet_tags_to_workloads_account(
         workloads_account_id=workloads_account_id,
         vpc_id=vpc_id,
@@ -348,6 +469,6 @@ def copy_vpc_subnet_tags_cross_account(
     successful = sum(1 for success in results.values() if success)
     total = len(results)
     print("-" * 50)
-    print(f"Summary: {successful}/{total} subnets processed successfully")
+    print(f"Summary: VPC Name tag {'copied' if vpc_success else 'failed'}, {successful}/{total} subnets processed successfully")
     
     return results 
