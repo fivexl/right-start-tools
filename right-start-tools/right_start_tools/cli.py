@@ -3,7 +3,7 @@
 
 import click
 from boto3.session import Session
-from .cross_account_vpc_tagger import copy_vpc_subnet_tags_cross_account
+from .cross_account_vpc_tagger import copy_vpc_subnet_tags_cross_account, copy_vpc_subnet_tags_using_ram
 from right_start_tools.main import Account
 from right_start_tools import backend, show, vpc
 
@@ -80,7 +80,7 @@ def create_roles(dry_run: bool) -> None:
 cli.add_command(create_roles)
 
 @click.command(
-    short_help="Copy shared VPCs tags"
+    short_help="Copy shared VPCs tags (legacy naming convention approach)"
 )
 @click.option("--dry-run", is_flag=True, help="Run without making changes")
 @click.option(
@@ -90,11 +90,10 @@ cli.add_command(create_roles)
 )
 @click.option(
     "--vpc-name", "-v",
-    prompt="VPC name to copy tags from",
-    help="VPC name to copy tags from.",
+    help="VPC name to copy tags from (if not provided, processes all VPCs - legacy approach).",
 )
-def copy_vpc_tags(dry_run: bool, region: str, vpc_name: str) -> None:
-    """Copy shared VPCs tags to all accounts."""
+def copy_vpc_tags(dry_run: bool, region: str, vpc_name: str = None) -> None:
+    """Copy shared VPCs tags to all accounts using legacy naming convention approach."""
     root_id = t.org.get_root_id()
     structure = t.org.get_org_structure(root_id)
     accounts = structure.all_accounts()
@@ -116,13 +115,77 @@ def copy_vpc_tags(dry_run: bool, region: str, vpc_name: str) -> None:
     for network_account, workload_accounts in accounts_to_copy_tags.items():
         for workload_account in workload_accounts:
             print(f"\n# Copying tags from {network_account} to {workload_account}")
-            copy_vpc_subnet_tags_cross_account(
-                networking_account_id=network_account.id,
-                workloads_account_id=workload_account.id, 
-                vpc_name=vpc_name,
-                region=region,
-                dry_run=dry_run
-            )
+            if vpc_name:
+                copy_vpc_subnet_tags_cross_account(
+                    networking_account_id=network_account.id,
+                    workloads_account_id=workload_account.id, 
+                    vpc_name=vpc_name,
+                    region=region,
+                    dry_run=dry_run
+                )
+            else:
+                print("NOTE: Legacy approach requires --vpc-name. Use copy-vpc-tags-ram for processing all VPCs.")
+                return
+
+
+@click.command(
+    short_help="Copy shared VPCs tags using AWS RAM discovery"
+)
+@click.option("--dry-run", is_flag=True, help="Run without making changes")
+@click.option(
+    "--region", "-r",
+    prompt="AWS region where the VPCs live",
+    help="AWS region where the VPCs live.",
+)
+@click.option(
+    "--vpc-name", "-v",
+    help="VPC name to copy tags from (if not provided, processes all shared VPCs).",
+)
+@click.option(
+    "--networking-accounts", "-n",
+    help="Comma-separated list of networking account IDs (if not provided, will try to discover from organization)",
+)
+def copy_vpc_tags_ram(dry_run: bool, region: str, vpc_name: str = None, networking_accounts: str = None) -> None:
+    """Copy shared VPCs tags using AWS RAM to discover subnet shares and target accounts."""
+    
+    # Parse networking accounts if provided
+    networking_account_ids = None
+    if networking_accounts:
+        networking_account_ids = [acc.strip() for acc in networking_accounts.split(",")]
+    else:
+        # Try to discover networking accounts from organization
+        print("Attempting to discover networking accounts from organization...")
+        root_id = t.org.get_root_id()
+        structure = t.org.get_org_structure(root_id)
+        accounts = structure.all_accounts()
+        
+        network_accounts = [account for account in accounts if "tools-network" in account.name]
+        if network_accounts:
+            networking_account_ids = [account.id for account in network_accounts]
+            print(f"Discovered networking accounts: {networking_account_ids}")
+        else:
+            click.echo("No networking accounts found. Please provide them using --networking-accounts option.")
+            return
+    
+    print(f"\n# Using RAM-based approach to copy VPC tags")
+    print(f"Networking accounts: {networking_account_ids}")
+    if vpc_name:
+        print(f"Processing single VPC: {vpc_name}")
+    else:
+        print("Processing all shared VPCs")
+    
+    results = copy_vpc_subnet_tags_using_ram(
+        vpc_name=vpc_name,
+        region=region,
+        dry_run=dry_run,
+        networking_account_ids=networking_account_ids
+    )
+    
+    if results:
+        print(f"\n# Successfully processed {len(results)} target accounts")
+    else:
+        print(f"\n# No target accounts were processed")
         
 
 cli.add_command(copy_vpc_tags)
+cli.add_command(copy_vpc_tags_ram)

@@ -40,6 +40,11 @@ Commands:
     Intended to be used in the management account, requires Control Tower or AWSControlTowerExecution role. Will delete all default VPCs and internet gateways in all accounts in all regions.
     Note! This process will go through all accounts and regions and delete default VPCs and IGWs. This process may take a while (~3-4 minutes per account).
 
+- rst copy-vpc-tags-ram
+   Run this one to copy tags for shared VPCs/subnets accross all of the organisation.
+   Will use RAM shares to automatically identify subnets shares and will copy tags accordingly.
+   Should be executed in the management account
+
 > This one requires you to be in the management account with permissions to STS & Organizations.
 - rst gen-tf-backend --region <region>
     Generate backend.tf file based on the current AWS environment.
