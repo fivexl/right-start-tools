@@ -2,18 +2,27 @@
 
 import boto3
 
+
 def main():
     # -------------------------------------------------------------------------------------
     # Hardcoded Configuration - Modify these values as needed
     # -------------------------------------------------------------------------------------
-    sso_start_url = "" # sample: https://something.awsapps.com/start/
-    sso_region = "us-east-1"
-    region = "us-east-1"
+    sso_start_url = ""  # sample: https://something.awsapps.com/start/
+    sso_region = ""
+    region = ""
     prefix = ""
     postfix = ""
-    permission_set_names = ["AdministratorAccessToFullOrg"]
+    permission_set_names = [""]
     # Add more if needed, if > 1, permission set name will be appended to profile name as a postfix
     # -------------------------------------------------------------------------------------
+
+    # Validate required parameters
+    if not sso_start_url:
+        raise ValueError("sso_start_url is required but not provided")
+    if not sso_region:
+        raise ValueError("sso_region is required but not provided")
+    if not region:
+        raise ValueError("region is required but not provided")
 
     # Create a client for AWS Organizations
     org_client = boto3.client("organizations")
@@ -67,6 +76,7 @@ def main():
     with open("sso_profiles_config.md", "w") as f:
         for line in output_lines:
             f.write(line + "\n")
+
 
 if __name__ == "__main__":
     main()
