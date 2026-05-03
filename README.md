@@ -50,6 +50,7 @@ Commands:
 - rst process-vpcs
     Intended to be used in the management account, requires Control Tower or AWSControlTowerExecution role. Will delete all default VPCs and internet gateways in all accounts in all regions.
     Note! This process will go through all accounts and regions and delete default VPCs and IGWs. This process may take a while (~3-4 minutes per account).
+    Runs in dry mode by default , use --force to delete the VPCs
 
 - rst copy-vpc-tags-ram
    Run this one to copy tags for shared VPCs/subnets accross all of the organisation.
