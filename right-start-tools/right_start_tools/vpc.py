@@ -123,7 +123,7 @@ def _process_account(
     if boto_sess is None:
         return  # already logged
 
-    ec2_client = boto_sess.client("ec2")
+    ec2_client = boto_sess.client("ec2", region_name="us-east-1")
     try:
         regions = EC2(ec2_client).get_all_regions_names()
     except (ClientError, BotoCoreError) as exc:
