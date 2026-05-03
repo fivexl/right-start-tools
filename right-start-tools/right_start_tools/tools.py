@@ -158,9 +158,9 @@ class Tools:
         sts = session.client("sts")
         s3 = session.client("s3")
 
-        aws_account_id = backend.get_aws_account_id(sts)
+        aws_account_id = backend.get_management_account_id(sts)
         region = session.region_name
-        env_id = backend.hash_environment_id(f"{aws_account_id}-{region}")
+        env_id = backend.sha1(f"{aws_account_id}-{region}")
         bucket_name = f"terraform-state-{env_id}"
 
         # find the bucket
